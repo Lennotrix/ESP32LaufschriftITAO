@@ -64,17 +64,26 @@ char sonderzeichen195(char code) {
   char ergebnis = ' ';
   switch (code) {
     case 188:  // ü
-      ergebnis = 220;
+      ergebnis = 252;
       break;
     case 164:  // ä
       ergebnis = 228;
       break;
     case 182:  // ö
-      ergebnis = 214;
+      ergebnis = 246;
+      break;
+    case 132:
+      ergebnis = 196;
+      break;
+    case 156:
+        ergebnis = 220;
+      break;
+    case 150:
+        ergebnis = 214;
       break;
     default:
       Serial.print("Unbekanntes 195-Zeichen --> ");
-      Serial.println((int) code);
+      Serial.println((int)code);
       break;
   }
   return ergebnis;
