@@ -34,6 +34,7 @@ char* http::GetPhrase() {
 
 char* http::Get() {
   char* phrase = &buffer[0];
+  bool anonym;
   buffer[0] = '\0';
   HTTPClient httpCli;
   Serial.println(endpoint);
@@ -45,12 +46,17 @@ char* http::Get() {
     Serial.println("Parsing input failed!");
   } else {
     Serial.println(jsonObject);
-    if (jsonObject.hasOwnProperty("class")) {
+    if (jsonObject.hasOwnProperty("anonym")) {
+      anonym = (bool)jsonObject["anonym"];
+    }
+    if (jsonObject.hasOwnProperty("class") && !anonym) {
       
       strncat(phrase, ((const char*)jsonObject["class"]), (HTTP_MAX_LEN - strlen(phrase)));
+      strncat(phrase, ": ", (HTTP_MAX_LEN - strlen(phrase)));
     }
-    if (jsonObject.hasOwnProperty("firstName")) {
+    if (jsonObject.hasOwnProperty("firstName") && !anonym) {
       strncat(phrase, ((const char*)jsonObject["firstName"]), (HTTP_MAX_LEN - strlen(phrase)));
+      strncat(phrase, ": ", (HTTP_MAX_LEN - strlen(phrase)));
     }
     if (jsonObject.hasOwnProperty("phrase")) {
       strncat(phrase, ((const char*)jsonObject["phrase"]), (HTTP_MAX_LEN - strlen(phrase)));
