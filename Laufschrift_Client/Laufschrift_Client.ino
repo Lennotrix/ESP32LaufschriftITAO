@@ -1,9 +1,7 @@
 #include <Arduino.h>
 
-#include <WiFi.h>
 #include <WiFiMulti.h>
 
-#include "http.h"
 
 #include <HTTPClient.h>
 
@@ -12,50 +10,92 @@
 #include <MD_Parola.h>
 #include <MD_MAX72xx.h>
 
+#include <EEPROM.h>
+
+//Own Library's
+#include "http.h"
+#include "ITAO_EEPROM.h"
+
+
+// Define Ledmatrix 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4  // 4 blocks
 #define CS_PIN 21
 
-#define DEBUG
+#undef WITH_ID
 
 // create an instance of the MD_Parola class
 MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
 
 WiFiMulti wifiMulti;
 
-const char* ssid = "TSST-SN";
-const char* pw = "123456789";
-char meinTextPuffer[HTTP_MAX_LEN + 1] = { '\0' };
-char* pPhraseURL = "http://10.1.1.30:5047/api/v01/phrase?id=2";
-const char* pLoginURL = "http://10.1.1.30:5047/api/v01/Auth/Login";
-const char* uName = "test001";
-const char* uPw = "test001";
-http myHttp(uName, uPw);
+// Eigenes Struct für die EEPROM Daten;
+ITAO_LAUFSCHRIFT_DATEN EEDaten;
+
+//Globale Variablen
+const char* ssid = EEDaten.EEssid;
+const char* pw = EEDaten.EEIPassword;
+const char* uName = EEDaten.EEusername;
+const char* uPw = EEDaten.EEpassword;
+int* ID = &EEDaten.EEphraseId;
+char displayBuffer[HTTP_MAX_LEN + 1] = { '\0' };
+http* myHttp;
+ITAO_EEPROM* MyEEPROM;
 
 void setup() {
   Serial.begin(19200);
 
+  MyEEPROM = new ITAO_EEPROM();
+  InitEEPROM();
+  
   wifiMulti.addAP(ssid, pw);
 
   if ((wifiMulti.run() == WL_CONNECTED)) {
     Serial.println("Connected");
   }
+
   ledMatrix.begin();           // initialize the object
   ledMatrix.setIntensity(15);  // set the brightness of the LED matrix display (from 0 to 15)
   ledMatrix.displayClear();    // clear led matrix display
-  ledMatrix.displayScroll(meinTextPuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
-  //http myHttp(uName, uPw);
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
+
+  myHttp = new http(uName, uPw);
+
+  zeigeDaten();
+}
+
+void zeigeDaten() {
+  Serial.println("ITAO-Daten");
+  Serial.print(" - Username    : ");
+  Serial.println(uName);
+  Serial.print(" - Password    : ");
+  Serial.println(uPw);
+  Serial.print(" - ssid: ");
+  Serial.println(ssid);
+  Serial.print(" - IPassword: ");
+  Serial.println(pw);
+}
+
+void InitEEPROM() {
+  EEDaten = MyEEPROM->ReadEEPROM();
 }
 
 void loop() {
   animate();
 }
 
+unsigned long lastRequest = 0;
 void animate() {
   if (ledMatrix.displayAnimate()) {
-    char* displayText = myHttp.GetPhrase(pPhraseURL);
-    fillTextBuffer(displayText);
-    ledMatrix.displayReset();
+    if ((millis() - lastRequest) > 2000) {
+      char* displayText = myHttp->GetPhrase();
+      fillTextBuffer(displayText);
+      ledMatrix.displayReset();
+      lastRequest = millis();
+    }
+    else if(millis() < lastRequest) {
+      lastRequest = 0;
+    }    
   }
 }
 
@@ -94,14 +134,51 @@ void fillTextBuffer(char* neuerText) {
     switch (*neuerText) {
       case 195:
         neuerText++;
-        meinTextPuffer[index++] = sonderzeichen195(*neuerText);
+        displayBuffer[index++] = sonderzeichen195(*neuerText);
         break;
       default:
-        meinTextPuffer[index++] = *(neuerText);
+        displayBuffer[index++] = *(neuerText);
         break;
     }
     neuerText++;
   }
-  meinTextPuffer[index] = '\0';
-  //strncpy(meinTextPuffer, displayText, HTTP_MAX_LEN);
+  displayBuffer[index] = '\0';
+  //strncpy(displayBuffer, displayText, HTTP_MAX_LEN);
 }
+#ifdef WITH_ID
+int countDigits(int number) {
+  int count = 0;
+
+  // Handle the case where the number is zero separately
+  if (number == 0) {
+    return 1;
+  }
+
+  // Keep dividing the number by 10 until it becomes zero
+  while (number != 0) {
+    number /= 10;
+    ++count;
+  }
+
+  return count;
+}
+
+void removeCharsFromEnd(char* arr, int countToRemove) {
+  if (!arr || countToRemove <= 0) {
+    return;  // No action needed if the array is null or countToRemove is not positive
+  }
+
+  int len = strlen(arr);
+
+  // Check if countToRemove is greater than or equal to the length
+  if (countToRemove >= len) {
+    arr[0] = '\0';  // Set the whole array to an empty string
+    return;
+  }
+
+  // Move the pointer to the new end of the array
+  arr += (len - countToRemove);
+
+  *arr = '\0';  // Set the new end of the array
+}
+#endif

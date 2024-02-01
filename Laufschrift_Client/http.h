@@ -4,7 +4,7 @@ class http{
   public:
     http(const char* uName, const char* pw);
     ~http();
-    char* GetPhrase(char* endpoint);
+    char* GetPhrase();
     char* Login();
     int GetStatus();
 

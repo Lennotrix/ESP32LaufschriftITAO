@@ -14,18 +14,20 @@ char bearerBuffer[HTTP_MAX_LEN + 1] = { '\0' };
 http::http(const char* uName, const char* pw) {
   this->uName = uName;
   this->uPw = pw;
+  this->pBearer = Login();
 }
 
 http::~http() {
 }
 
-char* http::GetPhrase(char* endpoint) {
-
+char* http::GetPhrase() {
+  const char* endpoint = "http://10.1.1.30:5047/api/v01/phrase/device";
   char* phrase = &buffer[0];
   *phrase = '\0';
   bool anonym;
 
   HTTPClient httpCli;
+  Serial.println(endpoint);
   httpCli.begin(endpoint);  //HTTP
   httpCli.addHeader("Content-Type", "application/json");
   httpCli.addHeader("Authorization", pBearer);
@@ -34,9 +36,13 @@ char* http::GetPhrase(char* endpoint) {
   Serial.println(httpCode);
   if (httpCode == 401) {
     this->pBearer = Login();
+    strncat(phrase, ("401"), (HTTP_MAX_LEN - strlen(phrase)));
     return phrase;
   }
-
+  else if(httpCode != 200){
+    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE] um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
+    return phrase;
+  }
   JSONVar jsonObject = JSON.parse(httpCli.getString().c_str());
   if (JSON.typeof(jsonObject) == "undefined") {
     Serial.println("Parsing input failed!");
@@ -62,7 +68,7 @@ char* http::GetPhrase(char* endpoint) {
   }
 
   httpCli.end();
-  
+
   return phrase;
 }
 
