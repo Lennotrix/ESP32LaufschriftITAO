@@ -21,7 +21,7 @@ http::~http() {
 }
 
 char* http::GetPhrase() {
-  const char* endpoint = "http://10.1.1.30:5047/api/v01/phrase/device";
+  const char* endpoint = "http://10.1.1.30:5047/api/v01/phrase?id=47";
   char* phrase = &buffer[0];
   *phrase = '\0';
   bool anonym;
@@ -36,16 +36,17 @@ char* http::GetPhrase() {
   Serial.println(httpCode);
   if (httpCode == 401) {
     this->pBearer = Login();
-    strncat(phrase, ("401"), (HTTP_MAX_LEN - strlen(phrase)));
+    strncat(phrase, ("ERROR: 401"), (HTTP_MAX_LEN - strlen(phrase)));
     return phrase;
   }
   else if(httpCode != 200){
-    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE] um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
+    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE], um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
     return phrase;
   }
   JSONVar jsonObject = JSON.parse(httpCli.getString().c_str());
   if (JSON.typeof(jsonObject) == "undefined") {
     Serial.println("Parsing input failed!");
+    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE], um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
     return phrase;
   }
   Serial.println(jsonObject);

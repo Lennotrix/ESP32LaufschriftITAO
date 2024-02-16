@@ -3,7 +3,6 @@
 #define EE_START 0
 
 struct ITAO_LAUFSCHRIFT_DATEN {
-  int EEphraseId;
   char EEusername[30];
   char EEpassword[30];
   char EEssid[70];
