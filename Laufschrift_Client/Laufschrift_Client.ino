@@ -90,7 +90,8 @@ void setup()
 
 void Booting(void *parameter)
 {
-  while(isBooting){
+  while (isBooting)
+  {
     BootLed(true);
     delay(500);
     BootLed(false);
@@ -152,6 +153,28 @@ void InitEEPROM()
 void loop()
 {
   animate();
+  if (Serial.available())
+  {
+    String sInput = Serial.readStringUntil(';');
+    if (sInput.substring(0, 1) == (const char *)'#')
+    {
+      if (sInput.substring(1) == (const char *)"Restart;")
+      {
+        ESP.restart();
+      }
+      if (sInput.substring(1, sInput.indexOf('%')) == (const char *)"EEPROM")
+      {
+        JSONVar eepromJson = JSON.parse(sInput.substring(sInput.indexOf('%'), sInput.indexOf(';') - 1));
+        if (JSON.typeof(jsonObject) == "undefined")
+        {
+
+        }
+        else{
+          ErrorLed(true);
+        }
+      }
+    }
+  }
 }
 
 unsigned long lastRequest = 0;
