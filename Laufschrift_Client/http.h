@@ -1,18 +1,16 @@
-#define HTTP_MAX_LEN 512
+#define HTTP_MAX_LEN 4096
 
 class http{
   public:
-    http(char* endpoint);
-    http(char* endpoint, char* token);
-    http(char* endpoint, char* testJSON, int bum);
+    http(const char* uName, const char* pw);
     ~http();
     char* GetPhrase();
+    char* Login();
     int GetStatus();
 
     private:
-      char* Get();
       int status;
-      const char* endpoint;
-      const char* token;
-      char* testJSON;
+      const char* uName;
+      const char* uPw;
+      char* pBearer;
 };
