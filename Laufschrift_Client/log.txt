@@ -1,0 +1,42 @@
+
+void SerialInput()
+{
+  String sInput = Serial.readStringUntil(';');
+
+  if (sInput.substring(0, 1) == "#")
+  {
+    if (sInput.substring(1) == (const char *)"Restart;")
+    {
+      ESP.restart();
+    }
+    if (sInput.substring(1, sInput.indexOf('%')) == "EEPROM")
+    {
+
+      JSONVar eepromJson = JSON.parse(sInput.substring(sInput.indexOf('{'), sInput.lastIndexOf('}') + 1));
+      if (JSON.typeof(eepromJson) == "undefined")
+      {
+      }
+      else
+      {
+        ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
+        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword"))
+        {
+          strcpy(newITAOEEPROM.EEusername, eepromJson["EEusername"]);
+          strcpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"]);
+          strcpy(newITAOEEPROM.EEssid, eepromJson["EEssid"]);
+          strcpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"]);
+
+          Serial.println(newITAOEEPROM.EEIPassword);
+          if (MyEEPROM->WriteEEPROM(newITAOEEPROM))
+          {
+            ESP.restart();
+          }
+          RunLed(false);
+          PauseJetzt(2000);
+          RunLed(true);
+          PauseJetzt(2000);
+        }
+      }
+    }
+  }
+}

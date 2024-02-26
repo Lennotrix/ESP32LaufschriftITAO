@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <iostream>
 
 #include <WiFiMulti.h>
 
@@ -29,8 +30,7 @@
 #define BOOT_PIN 26
 #define RUNNING_PIN 25
 
-#undef WITH_ID
-
+// Extra Thread for Blinking Boot Led
 TaskHandle_t Task_Booting_Handle;
 
 // create an instance of the MD_Parola class
@@ -41,17 +41,21 @@ WiFiMulti wifiMulti;
 // Eigenes Struct für die EEPROM Daten;
 ITAO_LAUFSCHRIFT_DATEN EEDaten;
 
+// Class Insider 
+#define PauseJetzt delay
+
 // Globale Variablen
 const char *ssid = EEDaten.EEssid;
 const char *pw = EEDaten.EEIPassword;
 const char *uName = EEDaten.EEusername;
 const char *uPw = EEDaten.EEpassword;
 char displayBuffer[HTTP_MAX_LEN + 1] = {'\0'};
-http *myHttp;
-ITAO_EEPROM *MyEEPROM;
 String MobileNumber = "";
 String APIKey = "";
 bool isBooting = true;
+unsigned long lastRequest = 0;
+http *myHttp;
+ITAO_EEPROM *MyEEPROM;
 
 void setup()
 {
@@ -66,14 +70,8 @@ void setup()
   wifiMulti.addAP(ssid, pw);
   wifiMulti.addAP("itao", "kleinholz");
 
-  if ((wifiMulti.run() == WL_CONNECTED))
-  {
-    Serial.println("Connected");
-  }
-  else
-  {
-    ErrorLed(true);
-  }
+  if ((wifiMulti.run() == WL_CONNECTED)) Serial.println("Connected");
+  else ErrorLed(true);
 
   ledMatrix.begin();          // initialize the object
   ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
@@ -82,54 +80,12 @@ void setup()
 
   myHttp = new http(uName, uPw);
 
+  zeigeDaten();
+
   RunLed(true);
   BootLed(false);
   isBooting = false;
   vTaskDelete(Task_Booting_Handle);
-}
-
-void Booting(void *parameter)
-{
-  while (isBooting)
-  {
-    BootLed(true);
-    delay(500);
-    BootLed(false);
-    delay(500);
-  }
-  BootLed(false);
-}
-
-void PinSetup()
-{
-  pinMode(ERROR_PIN, OUTPUT);
-  pinMode(BOOT_PIN, OUTPUT);
-  pinMode(RUNNING_PIN, OUTPUT);
-
-  digitalWrite(ERROR_PIN, HIGH);
-  digitalWrite(BOOT_PIN, HIGH);
-  digitalWrite(RUNNING_PIN, HIGH);
-
-  delay(1000);
-
-  digitalWrite(ERROR_PIN, LOW);
-  digitalWrite(BOOT_PIN, LOW);
-  digitalWrite(RUNNING_PIN, LOW);
-
-  digitalWrite(BOOT_PIN, HIGH);
-}
-
-void ErrorLed(bool val)
-{
-  digitalWrite(ERROR_PIN, val);
-}
-void BootLed(bool val)
-{
-  digitalWrite(BOOT_PIN, val);
-}
-void RunLed(bool val)
-{
-  digitalWrite(RUNNING_PIN, val);
 }
 
 void zeigeDaten()
@@ -155,29 +111,10 @@ void loop()
   animate();
   if (Serial.available())
   {
-    String sInput = Serial.readStringUntil(';');
-    if (sInput.substring(0, 1) == (const char *)'#')
-    {
-      if (sInput.substring(1) == (const char *)"Restart;")
-      {
-        ESP.restart();
-      }
-      if (sInput.substring(1, sInput.indexOf('%')) == (const char *)"EEPROM")
-      {
-        JSONVar eepromJson = JSON.parse(sInput.substring(sInput.indexOf('%'), sInput.indexOf(';') - 1));
-        if (JSON.typeof(jsonObject) == "undefined")
-        {
-
-        }
-        else{
-          ErrorLed(true);
-        }
-      }
-    }
+    SerialInput();
   }
 }
 
-unsigned long lastRequest = 0;
 void animate()
 {
   if (ledMatrix.displayAnimate())
@@ -187,18 +124,68 @@ void animate()
       char *displayText = myHttp->GetPhrase();
       fillTextBuffer(displayText);
       Serial.println(displayText);
-      ledMatrix.displayShutdown(true);
-      ledMatrix.begin();          // initialize the object
-      ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
-      ledMatrix.displayClear();   // clear led matrix display
-      ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
       lastRequest = millis();
+      LedMatrixReset();
     }
     else if (millis() < lastRequest)
     {
       lastRequest = 0;
     }
   }
+}
+
+void SerialInput()
+{
+  String sInput = Serial.readStringUntil(';');
+
+  if (sInput.substring(0, 1) == "#")
+  {
+    if (sInput.substring(1) == (const char *)"Restart;")
+    {
+      ESP.restart();
+    }
+    if (sInput.substring(1, sInput.indexOf('%')) == "EEPROM")
+    {
+
+      JSONVar eepromJson = JSON.parse(sInput.substring(sInput.indexOf('{'), sInput.lastIndexOf('}') + 1));
+      if (JSON.typeof(eepromJson) == "undefined")
+      {
+        ErrorLed(true);
+        PauseJetzt(2000);
+        ErrorLed(false);
+      }
+      else
+      {
+        ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
+        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword"))
+        {
+          strcpy(newITAOEEPROM.EEusername, eepromJson["EEusername"]);
+          strcpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"]);
+          strcpy(newITAOEEPROM.EEssid, eepromJson["EEssid"]);
+          strcpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"]);
+
+          Serial.println(newITAOEEPROM.EEIPassword);
+          if (MyEEPROM->WriteEEPROM(newITAOEEPROM))
+          {
+            ESP.restart();
+          }
+          RunLed(false);
+          PauseJetzt(2000);
+          RunLed(true);
+          PauseJetzt(2000);
+        }
+      }
+    }
+  }
+}
+
+void LedMatrixReset()
+{
+  ledMatrix.displayShutdown(true);
+  ledMatrix.begin();          // initialize the object
+  ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
+  ledMatrix.displayClear();   // clear led matrix display
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
 }
 
 char sonderzeichen195(char code)
@@ -252,49 +239,6 @@ void fillTextBuffer(char *neuerText)
   displayBuffer[index] = '\0';
   // strncpy(displayBuffer, displayText, HTTP_MAX_LEN);
 }
-#ifdef WITH_ID
-int countDigits(int number)
-{
-  int count = 0;
-
-  // Handle the case where the number is zero separately
-  if (number == 0)
-  {
-    return 1;
-  }
-
-  // Keep dividing the number by 10 until it becomes zero
-  while (number != 0)
-  {
-    number /= 10;
-    ++count;
-  }
-
-  return count;
-}
-
-void removeCharsFromEnd(char *arr, int countToRemove)
-{
-  if (!arr || countToRemove <= 0)
-  {
-    return; // No action needed if the array is null or countToRemove is not positive
-  }
-
-  int len = strlen(arr);
-
-  // Check if countToRemove is greater than or equal to the length
-  if (countToRemove >= len)
-  {
-    arr[0] = '\0'; // Set the whole array to an empty string
-    return;
-  }
-
-  // Move the pointer to the new end of the array
-  arr += (len - countToRemove);
-
-  *arr = '\0'; // Set the new end of the array
-}
-#endif
 
 void sendWhatsApp(String message)
 {
@@ -316,4 +260,48 @@ void sendWhatsApp(String message)
     Serial.println(httpResponseCode);
   }
   http.end();
+}
+
+void Booting(void *parameter)
+{
+  while (isBooting)
+  {
+    BootLed(true);
+    PauseJetzt(500);
+    BootLed(false);
+    PauseJetzt(500);
+  }
+  BootLed(false);
+}
+
+void PinSetup()
+{
+  pinMode(ERROR_PIN, OUTPUT);
+  pinMode(BOOT_PIN, OUTPUT);
+  pinMode(RUNNING_PIN, OUTPUT);
+
+  digitalWrite(ERROR_PIN, HIGH);
+  digitalWrite(BOOT_PIN, HIGH);
+  digitalWrite(RUNNING_PIN, HIGH);
+
+  PauseJetzt(1000);
+
+  digitalWrite(ERROR_PIN, LOW);
+  digitalWrite(BOOT_PIN, LOW);
+  digitalWrite(RUNNING_PIN, LOW);
+
+  digitalWrite(BOOT_PIN, HIGH);
+}
+
+void ErrorLed(bool val)
+{
+  digitalWrite(ERROR_PIN, val);
+}
+void BootLed(bool val)
+{
+  digitalWrite(BOOT_PIN, val);
+}
+void RunLed(bool val)
+{
+  digitalWrite(RUNNING_PIN, val);
 }
