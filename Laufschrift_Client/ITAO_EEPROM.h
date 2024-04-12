@@ -7,6 +7,8 @@ struct ITAO_LAUFSCHRIFT_DATEN {
   char EEpassword[30];
   char EEssid[70];
   char EEIPassword[50];
+  int EEMatrixsSize;
+  char EEendpoint[255];
 };
 
 class ITAO_EEPROM {

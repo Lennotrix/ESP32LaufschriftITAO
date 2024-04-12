@@ -1,9 +1,11 @@
 #include <Arduino.h>
 #include <iostream>
 
-#include <WiFiMulti.h>
+// #include <WiFiMulti.h>
 
 #include <HTTPClient.h>
+
+#include "WiFi.h"
 
 #include <Arduino_JSON.h>
 
@@ -22,33 +24,44 @@
 
 // Define Ledmatrix
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 4 // 4 blocks
+#define MAX_DEVICES 10
 #define CS_PIN 21
+#define CLK_PIN   18
+#define DATA_PIN  23
 
 // Status Led Pins
 #define ERROR_PIN 27
 #define BOOT_PIN 26
 #define RUNNING_PIN 25
 
+#define MatrixPace 40
+
 // Extra Thread for Blinking Boot Led
 TaskHandle_t Task_Booting_Handle;
 
 // create an instance of the MD_Parola class
-MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
+//MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
+MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 
-WiFiMulti wifiMulti;
+// WiFiMulti wifiMulti;
 
 // Eigenes Struct für die EEPROM Daten;
 ITAO_LAUFSCHRIFT_DATEN EEDaten;
 
-// Class Insider 
+WiFiClass wifi;
+
+// Class Insider
 #define PauseJetzt delay
+
+#define wifiFlushCooldown 3600000
 
 // Globale Variablen
 const char *ssid = EEDaten.EEssid;
 const char *pw = EEDaten.EEIPassword;
 const char *uName = EEDaten.EEusername;
 const char *uPw = EEDaten.EEpassword;
+const char *endpointUrl = EEDaten.EEendpoint;
+int matrixSize = EEDaten.EEMatrixsSize;
 char displayBuffer[HTTP_MAX_LEN + 1] = {'\0'};
 String MobileNumber = "";
 String APIKey = "";
@@ -56,27 +69,45 @@ bool isBooting = true;
 unsigned long lastRequest = 0;
 http *myHttp;
 ITAO_EEPROM *MyEEPROM;
+int wifiStatus;
+long lastHour = 1;
 
 void setup()
 {
+  SPI.setDataMode(SPI_MODE3);
   PinSetup();
-  xTaskCreate(Booting, "BootingTask", 10000, NULL, 1, &Task_Booting_Handle);
+  xTaskCreate(Booting, "BootingTask", 10000, NULL, 15, &Task_Booting_Handle);
 
   Serial.begin(19200);
-
   MyEEPROM = new ITAO_EEPROM();
   InitEEPROM();
+  /*
+    wifiMulti.addAP(ssid, pw);
+    wifiMulti.addAP("itao", "kleinholz");
 
-  wifiMulti.addAP(ssid, pw);
-  wifiMulti.addAP("itao", "kleinholz");
+    if ((wifiMulti.run() == WL_CONNECTED)) Serial.println("Connected");
+    else ErrorLed(true);
+  */
+  wifi.begin(ssid, pw);
+  while (wifi.status() != WL_CONNECTED)
+  {
+    Serial.print("Attempting to connect to open SSID: ");
+    Serial.println(ssid);
+    Serial.print("Password:");
+    Serial.println(pw);
+    Serial.println(wifi.status());
+    PauseJetzt(5000);
+  }
 
-  if ((wifiMulti.run() == WL_CONNECTED)) Serial.println("Connected");
-  else ErrorLed(true);
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(wifi.localIP());
 
   ledMatrix.begin();          // initialize the object
-  ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
+  ledMatrix.setIntensity(1); // set the brightness of the LED matrix display (from 0 to 15)
   ledMatrix.displayClear();   // clear led matrix display
-  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MatrixPace);
 
   myHttp = new http(uName, uPw);
 
@@ -99,6 +130,10 @@ void zeigeDaten()
   Serial.println(ssid);
   Serial.print(" - IPassword: ");
   Serial.println(pw);
+  Serial.print(" - Matrix Size: ");
+  Serial.println(matrixSize);
+  Serial.print(" - Endpoint: ");
+  Serial.println(endpointUrl);
 }
 
 void InitEEPROM()
@@ -113,8 +148,19 @@ void loop()
   {
     SerialInput();
   }
+  ESPDayCheck();
 }
-
+void ESPDayCheck(){
+  //int timeNow = millis();
+  int hoursRunning = millis() / 3600000;
+  //int minutesRunning = millis() / 60000;
+  //int hoursNow = (timeNow % 86400000) / 3600000;
+  //int minutes = ((timeNow % 86400000) % 3600000) / 60000;
+  if(hoursRunning >= 2){
+    Serial.println("Reboot");
+    ESP.restart();
+  }
+}
 void animate()
 {
   if (ledMatrix.displayAnimate())
@@ -157,22 +203,19 @@ void SerialInput()
       else
       {
         ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
-        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword"))
+        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword") && eepromJson.hasOwnProperty("EEMatrixSize") && eepromJson.hasOwnProperty("EEEndpoint"))
         {
-          strcpy(newITAOEEPROM.EEusername, eepromJson["EEusername"]);
-          strcpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"]);
-          strcpy(newITAOEEPROM.EEssid, eepromJson["EEssid"]);
-          strcpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"]);
+          strncpy(newITAOEEPROM.EEusername, eepromJson["EEusername"], 30);
+          strncpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"], 30);
+          strncpy(newITAOEEPROM.EEssid, eepromJson["EEssid"], 70);
+          strncpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"], 50);
+          newITAOEEPROM.EEMatrixsSize = (int)eepromJson["EEMatrixSize"];
+          strncpy(newITAOEEPROM.EEendpoint, eepromJson["EEEndpoint"], 255);
 
-          Serial.println(newITAOEEPROM.EEIPassword);
           if (MyEEPROM->WriteEEPROM(newITAOEEPROM))
           {
             ESP.restart();
           }
-          RunLed(false);
-          PauseJetzt(2000);
-          RunLed(true);
-          PauseJetzt(2000);
         }
       }
     }
@@ -185,7 +228,7 @@ void LedMatrixReset()
   ledMatrix.begin();          // initialize the object
   ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
   ledMatrix.displayClear();   // clear led matrix display
-  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, 50);
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MatrixPace);
 }
 
 char sonderzeichen195(char code)

@@ -40,3 +40,58 @@ void SerialInput()
     }
   }
 }
+
+
+
+char* http::GetPhrase() {
+  const char* endpoint = "http://10.1.1.30:5047/api/v01/phrase?id=47";
+  char* phrase = &buffer[0];
+  *phrase = '\0';
+  bool anonym;
+
+  HTTPClient httpCli;
+  Serial.println(endpoint);
+  httpCli.begin(endpoint);  //HTTP
+  httpCli.addHeader("Content-Type", "application/json");
+  httpCli.addHeader("Authorization", pBearer);
+
+  int httpCode = httpCli.GET();
+  Serial.println(httpCode);
+  if (httpCode == 401) {
+    this->pBearer = Login();
+    strncat(phrase, ("ERROR: 401"), (HTTP_MAX_LEN - strlen(phrase)));
+    return phrase;
+  }
+  else if(httpCode != 200){
+    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE], um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
+    return phrase;
+  }
+  JSONVar jsonObject = JSON.parse(httpCli.getString().c_str());
+  if (JSON.typeof(jsonObject) == "undefined") {
+    Serial.println("Parsing input failed!");
+    strncat(phrase, "Gehen Sie jetzt auf [WEBSITE], um hier Sätze anzeigen zu lassen!", (HTTP_MAX_LEN - strlen(phrase)));
+    return phrase;
+  }
+  Serial.println(jsonObject);
+  if (jsonObject.hasOwnProperty("anonym")) {
+    anonym = (bool)jsonObject["anonym"];
+  }
+  if (!anonym) {
+    if (jsonObject.hasOwnProperty("creatorClassName")) {
+
+      strncat(phrase, ((const char*)jsonObject["creatorClassName"]), (HTTP_MAX_LEN - strlen(phrase)));
+      strncat(phrase, ": ", (HTTP_MAX_LEN - strlen(phrase)));
+    }
+    if (jsonObject.hasOwnProperty("creatorFirstName")) {
+      strncat(phrase, ((const char*)jsonObject["creatorFirstName"]), (HTTP_MAX_LEN - strlen(phrase)));
+      strncat(phrase, ": ", (HTTP_MAX_LEN - strlen(phrase)));
+    }
+  }
+  if (jsonObject.hasOwnProperty("phrase")) {
+    strncat(phrase, ((const char*)jsonObject["phrase"]), (HTTP_MAX_LEN - strlen(phrase)));
+  }
+
+  httpCli.end();
+
+  return phrase;
+}
