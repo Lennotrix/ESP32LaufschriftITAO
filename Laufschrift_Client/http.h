@@ -1,4 +1,6 @@
 #define HTTP_MAX_LEN 4096
+#include <Arduino_JSON.h>
+#include <HTTPClient.h>
 
 class http{
   public:
@@ -6,10 +8,9 @@ class http{
     ~http();
     char* GetPhrase();
     char* Login();
-    int GetStatus();
 
     private:
-      int status;
+      void appendPhrase(JSONVar &jsonObject, char *phrase);
       const char* uName;
       const char* uPw;
       char* pBearer;
