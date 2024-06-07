@@ -91,7 +91,11 @@ void http::appendPhrase(JSONVar &jsonObject, char *phrase)
 char *http::Login()
 {
   #ifndef NO_WIFI
-  const char *endpoint = "http://10.1.1.30:5047/api/v01/auth/Login"; // TODO: Change to EEPROM Endpoint / Login
+  char *pEndpoint = &endpoint[0];
+  *pEndpoint = '\0';
+
+  strncat(pEndpoint, this->EEData->EEendpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
+  strncat(pEndpoint, "/api/v01/Login", ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
 
   httpCli.begin(endpoint);
 

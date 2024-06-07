@@ -1,5 +1,3 @@
-// #include <WiFiMulti.h>
-
 #include <HTTPClient.h>
 
 #include "WiFi.h"
@@ -18,6 +16,27 @@
 // Own Library's
 #include "http.h"
 #include "globals.h"
+
+// Function prototypes
+void setup();
+void loop();
+void zeigeDaten();
+void InitEEPROM();
+void ESPDayCheck();
+void animate();
+void SerialInput();
+void handleJsonError();
+void updateEEPROM(JSONVar eepromJson);
+bool validateJson(JSONVar json);
+void LedMatrixReset();
+char sonderzeichen195(char code);
+void fillTextBuffer(char *neuerText);
+void sendWhatsApp(String message);
+void Booting(void *parameter);
+void PinSetup();
+void ErrorLed(bool val);
+void BootLed(bool val);
+void RunLed(bool val);
 
 // Define Ledmatrix
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
@@ -62,11 +81,18 @@ long lastHour = 1;
 
 void setup()
 {
+  Serial.begin(19200);
+
+  #ifdef NO_WIFI
+  Serial.println("No Wifi Mode!");
+  #endif
+  #ifdef DEBUG
+  Serial.println("Debug Mode!");
+  #endif
   SPI.setDataMode(SPI_MODE3);
   PinSetup();
   xTaskCreate(Booting, "BootingTask", 10000, NULL, 15, &Task_Booting_Handle);
 
-  Serial.begin(19200);
   MyEEPROM = new ITAO_EEPROM();
   InitEEPROM();
 
@@ -79,6 +105,7 @@ void setup()
     Serial.print("Password:");
     Serial.println(pw);
     Serial.println(wifi.status());
+    SerialInput();
     PauseJetzt(5000);
   }
 
@@ -161,47 +188,57 @@ void animate()
     }
   }
 }
+void SerialInput() {
+    String sInput = Serial.readStringUntil(';');
 
-void SerialInput()
-{
-  String sInput = Serial.readStringUntil(';');
+    if (sInput.startsWith("#")) {
+        String command = sInput.substring(1, sInput.indexOf('%'));
 
-  if (sInput.substring(0, 1) == "#")
-  {
-    if (sInput.substring(1) == (const char *)"Restart;")
-    {
-      ESP.restart();
-    }
-    if (sInput.substring(1, sInput.indexOf('%')) == "EEPROM")
-    {
-
-      JSONVar eepromJson = JSON.parse(sInput.substring(sInput.indexOf('{'), sInput.lastIndexOf('}') + 1));
-      if (JSON.typeof(eepromJson) == "undefined")
-      {
-        ErrorLed(true);
-        PauseJetzt(2000);
-        ErrorLed(false);
-      }
-      else
-      {
-        ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
-        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword") && eepromJson.hasOwnProperty("EEEndpoint"))
-        {
-          strncpy(newITAOEEPROM.EEusername, eepromJson["EEusername"], 30);
-          strncpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"], 30);
-          strncpy(newITAOEEPROM.EEssid, eepromJson["EEssid"], 70);
-          strncpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"], 50);
-          strncpy(newITAOEEPROM.EEendpoint, eepromJson["EEEndpoint"], 255);
-
-          if (MyEEPROM->WriteEEPROM(newITAOEEPROM))
-          {
+        if (command == "Restart") {
             ESP.restart();
-          }
+        } else if (command == "EEPROM") {
+            String jsonString = sInput.substring(sInput.indexOf('{'), sInput.lastIndexOf('}') + 1);
+            JSONVar eepromJson = JSON.parse(jsonString);
+
+            if (JSON.typeof(eepromJson) == "undefined") {
+                handleJsonError();
+            } else {
+                updateEEPROM(eepromJson);
+            }
         }
-      }
     }
-  }
 }
+
+void handleJsonError() {
+    ErrorLed(true);
+    PauseJetzt(2000);
+    ErrorLed(false);
+}
+
+void updateEEPROM(JSONVar eepromJson) {
+    if (validateJson(eepromJson)) {
+        ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
+
+        strncpy(newITAOEEPROM.EEusername, eepromJson["EEusername"], 30);
+        strncpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"], 30);
+        strncpy(newITAOEEPROM.EEssid, eepromJson["EEssid"], 70);
+        strncpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"], 50);
+        strncpy(newITAOEEPROM.EEendpoint, eepromJson["EEEndpoint"], 255);
+
+        if (MyEEPROM->WriteEEPROM(newITAOEEPROM)) {
+            ESP.restart();
+        }
+    }
+}
+
+bool validateJson(JSONVar json) {
+    return json.hasOwnProperty("EEusername") &&
+           json.hasOwnProperty("EEpassword") &&
+           json.hasOwnProperty("EEssid") &&
+           json.hasOwnProperty("EEIPassword") &&
+           json.hasOwnProperty("EEEndpoint");
+}
+
 
 void LedMatrixReset()
 {
