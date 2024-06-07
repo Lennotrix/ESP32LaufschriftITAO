@@ -1,0 +1,1 @@
+#EEPROM%{"EEusername":"test001","EEpassword":"test001","EEssid":"TSST-SN","EEIPassword":"123456789","EEEndpoint":"10.1.1.30:5047"};

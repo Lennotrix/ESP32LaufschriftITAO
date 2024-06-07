@@ -1,6 +1,3 @@
-#include <Arduino.h>
-#include <iostream>
-
 // #include <WiFiMulti.h>
 
 #include <HTTPClient.h>
@@ -20,21 +17,13 @@
 
 // Own Library's
 #include "http.h"
-#include "ITAO_EEPROM.h"
+#include "globals.h"
 
 // Define Ledmatrix
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 10
 #define CS_PIN 21
 #define CLK_PIN   18
 #define DATA_PIN  23
-
-// Status Led Pins
-#define ERROR_PIN 27
-#define BOOT_PIN 26
-#define RUNNING_PIN 25
-
-#define MatrixPace 40
 
 // Extra Thread for Blinking Boot Led
 TaskHandle_t Task_Booting_Handle;
@@ -46,7 +35,7 @@ MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DE
 // WiFiMulti wifiMulti;
 
 // Eigenes Struct für die EEPROM Daten;
-ITAO_LAUFSCHRIFT_DATEN EEDaten;
+ITAO_LAUFSCHRIFT_DATEN EEData;
 
 WiFiClass wifi;
 
@@ -56,12 +45,11 @@ WiFiClass wifi;
 #define wifiFlushCooldown 3600000
 
 // Globale Variablen
-const char *ssid = EEDaten.EEssid;
-const char *pw = EEDaten.EEIPassword;
-const char *uName = EEDaten.EEusername;
-const char *uPw = EEDaten.EEpassword;
-const char *endpointUrl = EEDaten.EEendpoint;
-int matrixSize = EEDaten.EEMatrixsSize;
+const char *ssid = EEData.EEssid;
+const char *pw = EEData.EEIPassword;
+const char *uName = EEData.EEusername;
+const char *uPw = EEData.EEpassword;
+const char *endpointUrl = EEData.EEendpoint;
 char displayBuffer[HTTP_MAX_LEN + 1] = {'\0'};
 String MobileNumber = "";
 String APIKey = "";
@@ -81,13 +69,8 @@ void setup()
   Serial.begin(19200);
   MyEEPROM = new ITAO_EEPROM();
   InitEEPROM();
-  /*
-    wifiMulti.addAP(ssid, pw);
-    wifiMulti.addAP("itao", "kleinholz");
 
-    if ((wifiMulti.run() == WL_CONNECTED)) Serial.println("Connected");
-    else ErrorLed(true);
-  */
+  #ifndef NO_WIFI
   wifi.begin(ssid, pw);
   while (wifi.status() != WL_CONNECTED)
   {
@@ -103,13 +86,14 @@ void setup()
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(wifi.localIP());
+#endif
 
   ledMatrix.begin();          // initialize the object
-  ledMatrix.setIntensity(1); // set the brightness of the LED matrix display (from 0 to 15)
+  ledMatrix.setIntensity(MATRIX_INTENSITY); // set the brightness of the LED matrix display (from 0 to 15)
   ledMatrix.displayClear();   // clear led matrix display
-  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MatrixPace);
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MATRIX_PACE);
 
-  myHttp = new http(uName, uPw);
+  myHttp = new http(uName, uPw, &EEData);
 
   zeigeDaten();
 
@@ -130,15 +114,13 @@ void zeigeDaten()
   Serial.println(ssid);
   Serial.print(" - IPassword: ");
   Serial.println(pw);
-  Serial.print(" - Matrix Size: ");
-  Serial.println(matrixSize);
   Serial.print(" - Endpoint: ");
   Serial.println(endpointUrl);
 }
 
 void InitEEPROM()
 {
-  EEDaten = MyEEPROM->ReadEEPROM();
+  EEData = MyEEPROM->ReadEEPROM();
 }
 
 void loop()
@@ -203,13 +185,12 @@ void SerialInput()
       else
       {
         ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
-        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword") && eepromJson.hasOwnProperty("EEMatrixSize") && eepromJson.hasOwnProperty("EEEndpoint"))
+        if (eepromJson.hasOwnProperty("EEusername") && eepromJson.hasOwnProperty("EEpassword") && eepromJson.hasOwnProperty("EEssid") && eepromJson.hasOwnProperty("EEIPassword") && eepromJson.hasOwnProperty("EEEndpoint"))
         {
           strncpy(newITAOEEPROM.EEusername, eepromJson["EEusername"], 30);
           strncpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"], 30);
           strncpy(newITAOEEPROM.EEssid, eepromJson["EEssid"], 70);
           strncpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"], 50);
-          newITAOEEPROM.EEMatrixsSize = (int)eepromJson["EEMatrixSize"];
           strncpy(newITAOEEPROM.EEendpoint, eepromJson["EEEndpoint"], 255);
 
           if (MyEEPROM->WriteEEPROM(newITAOEEPROM))
@@ -228,7 +209,7 @@ void LedMatrixReset()
   ledMatrix.begin();          // initialize the object
   ledMatrix.setIntensity(15); // set the brightness of the LED matrix display (from 0 to 15)
   ledMatrix.displayClear();   // clear led matrix display
-  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MatrixPace);
+  ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MATRIX_PACE);
 }
 
 char sonderzeichen195(char code)

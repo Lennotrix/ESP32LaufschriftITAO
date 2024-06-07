@@ -1,8 +1,8 @@
 #include <EEPROM.h>
 #include "ITAO_EEPROM.h"
+#include "globals.h"
 
 #define EE_START 0
-
 
 bool ITAO_EEPROM::WriteEEPROM(ITAO_LAUFSCHRIFT_DATEN werte){
   if (!EEPROM.begin(sizeof(ITAO_LAUFSCHRIFT_DATEN))) {
@@ -17,12 +17,12 @@ bool ITAO_EEPROM::WriteEEPROM(ITAO_LAUFSCHRIFT_DATEN werte){
 
 ITAO_LAUFSCHRIFT_DATEN ITAO_EEPROM::ReadEEPROM(){
   if (!EEPROM.begin(sizeof(ITAO_LAUFSCHRIFT_DATEN))) {
-    Serial.println("EEPROM-ERROR!");
+    Serial.println("EEPROM ERROR!");
     ESP.restart();
   }
   ITAO_LAUFSCHRIFT_DATEN readEEPROM;
   EEPROM.get(EE_START, readEEPROM);
   delay(500);
-  Serial.println("Read itao data type!");
+  Serial.println("Read ITAO data type!");
   return readEEPROM;
 }

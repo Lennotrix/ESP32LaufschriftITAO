@@ -1,22 +1,24 @@
 #include "http.h"
-#include <Arduino.h>
 #include <HTTPClient.h>
 #include <Arduino_JSON.h>
-
-// #define DEBUG_OUT
-// #undef DEBUG_OUT
+#include "globals.h"
 
 // Variablen
 
-char buffer[HTTP_MAX_LEN + 1] = {'\0'};
-char bearerBuffer[HTTP_MAX_LEN + 1] = {'\0'};
+#ifdef DEBUG
+const char* phraseEndpoint = "/api/v01/phrase?id=";
+#endif
+#ifndef DEBUG
+const char* phraseEndpoint = "/api/v01/phrase/device";
+#endif
 
 HTTPClient httpCli;
 
-http::http(const char *uName, const char *pw)
+http::http(const char *uName, const char *pw, ITAO_LAUFSCHRIFT_DATEN *EEData)
 {
   this->uName = uName;
   this->uPw = pw;
+  this->EEData = EEData;
   this->pBearer = Login();
 }
 
@@ -24,16 +26,19 @@ http::~http()
 {
 }
 
-const char *const kEndpoint = "http://10.1.1.30:5047/api/v01/phrase?id=5";
-
 char *http::GetPhrase()
 {
-  char *phrase = &buffer[0];
+  char *pEndpoint = &endpoint[0];
+  *pEndpoint = '\0';
+  char * phrase = &buffer[0];
   *phrase = '\0';
 
-  Serial.println(kEndpoint);
+  strncat(pEndpoint, this->EEData->EEendpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
+  strncat(pEndpoint, phraseEndpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
 
-  httpCli.begin(kEndpoint);
+  Serial.println(pEndpoint);
+  #ifndef NO_WIFI
+  httpCli.begin(pEndpoint);
   httpCli.addHeader("Content-Type", "application/json");
   httpCli.addHeader("Authorization", pBearer);
 
@@ -59,7 +64,7 @@ char *http::GetPhrase()
   }
 
   appendPhrase(jsonObject, phrase);
-
+#endif
   return phrase;
 }
 
@@ -85,15 +90,16 @@ void http::appendPhrase(JSONVar &jsonObject, char *phrase)
 
 char *http::Login()
 {
-  const char *endpoint = "http://10.1.1.30:5047/api/v01/auth/Login";
+  #ifndef NO_WIFI
+  const char *endpoint = "http://10.1.1.30:5047/api/v01/auth/Login"; // TODO: Change to EEPROM Endpoint / Login
 
   httpCli.begin(endpoint);
 
   httpCli.addHeader("Content-Type", "application/json");
-
+#endif
   char *pBearer = &bearerBuffer[0];
   *pBearer = '\0';
-
+#ifndef NO_WIFI
   JSONVar doc;
 
   doc["userName"] = this->uName;
@@ -117,6 +123,7 @@ char *http::Login()
   {
     Serial.printf("[HTTP] POST... failed, error: %s\n", httpCli.errorToString(httpCode).c_str());
   }
-  return pBearer;
   httpCli.end();
+  #endif
+  return pBearer;
 }

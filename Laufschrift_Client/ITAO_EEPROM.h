@@ -1,13 +1,11 @@
 #include <EEPROM.h>
-
-#define EE_START 0
+#include "globals.h"
 
 struct ITAO_LAUFSCHRIFT_DATEN {
   char EEusername[30];
   char EEpassword[30];
   char EEssid[70];
   char EEIPassword[50];
-  int EEMatrixsSize;
   char EEendpoint[255];
 };
 
