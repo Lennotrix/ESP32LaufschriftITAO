@@ -94,10 +94,10 @@ The Arduino LED Matrix Display project is designed to create a scrolling text di
 
 ### `ITAO_LAUFSCHRIFT_DATEN` Structure
 
-- `EEusername[30]`: Character array for storing the username (max 30 characters).
-- `EEpassword[30]`: Character array for storing the password (max 30 characters).
-- `EEssid[70]`: Character array for storing the WiFi SSID (max 70 characters).
-- `EEIPassword[50]`: Character array for storing the WiFi password (max 50 characters).
+- `api_username[30]`: Character array for storing the username (max 30 characters).
+- `api_password[30]`: Character array for storing the password (max 30 characters).
+- `router_ssid[70]`: Character array for storing the WiFi SSID (max 70 characters).
+- `router_password[50]`: Character array for storing the WiFi password (max 50 characters).
 
 ## Usage
 

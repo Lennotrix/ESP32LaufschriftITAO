@@ -4,8 +4,8 @@
 #include <Arduino.h>
 #include <iostream>
 
-#define NO_WIFI
-#define DEBUG
+#undef NO_WIFI // No Wifi mode
+#define DEBUG // Debug mode
 
 #define HTTP_MAX_LEN 4096
 #define ENDPOINT_MAX_LENGTH 255

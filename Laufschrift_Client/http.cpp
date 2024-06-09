@@ -14,10 +14,8 @@ const char* phraseEndpoint = "/api/v01/phrase/device";
 
 HTTPClient httpCli;
 
-http::http(const char *uName, const char *pw, ITAO_LAUFSCHRIFT_DATEN *EEData)
+http::http(ITAO_LAUFSCHRIFT_DATEN *EEData)
 {
-  this->uName = uName;
-  this->uPw = pw;
   this->EEData = EEData;
   this->pBearer = Login();
 }
@@ -33,7 +31,7 @@ char *http::GetPhrase()
   char * phrase = &buffer[0];
   *phrase = '\0';
 
-  strncat(pEndpoint, this->EEData->EEendpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
+  strncat(pEndpoint, this->EEData->api_endpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
   strncat(pEndpoint, phraseEndpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
 
   Serial.println(pEndpoint);
@@ -94,10 +92,10 @@ char *http::Login()
   char *pEndpoint = &endpoint[0];
   *pEndpoint = '\0';
 
-  strncat(pEndpoint, this->EEData->EEendpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
+  strncat(pEndpoint, this->EEData->api_endpoint, ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
   strncat(pEndpoint, "/api/v01/Login", ENDPOINT_MAX_LENGTH - strlen(pEndpoint));
 
-  httpCli.begin(endpoint);
+  httpCli.begin(pEndpoint);
 
   httpCli.addHeader("Content-Type", "application/json");
 #endif
@@ -106,8 +104,8 @@ char *http::Login()
 #ifndef NO_WIFI
   JSONVar doc;
 
-  doc["userName"] = this->uName;
-  doc["password"] = this->uPw;
+  doc["userName"] = this->EEData->api_username;
+  doc["password"] = this->EEData->api_password;
 
   int httpCode = httpCli.POST(JSON.stringify(doc));
   if (httpCode > 0)

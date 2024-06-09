@@ -1,1 +1,1 @@
-#EEPROM%{"EEusername":"test001","EEpassword":"test001","EEssid":"TSST-SN","EEIPassword":"123456789","EEEndpoint":"10.1.1.30:5047"};
+#EEPROM%{"api_username":"test001","api_password":"test001","router_ssid":"TSST-SN","router_password":"123456789","api_endpoint":"10.1.1.30:5047"};

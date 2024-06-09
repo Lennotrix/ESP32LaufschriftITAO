@@ -54,7 +54,7 @@ MD_Parola ledMatrix = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DE
 // WiFiMulti wifiMulti;
 
 // Eigenes Struct für die EEPROM Daten;
-ITAO_LAUFSCHRIFT_DATEN EEData;
+ITAO_LAUFSCHRIFT_DATEN *EEData;
 
 WiFiClass wifi;
 
@@ -64,11 +64,6 @@ WiFiClass wifi;
 #define wifiFlushCooldown 3600000
 
 // Globale Variablen
-const char *ssid = EEData.EEssid;
-const char *pw = EEData.EEIPassword;
-const char *uName = EEData.EEusername;
-const char *uPw = EEData.EEpassword;
-const char *endpointUrl = EEData.EEendpoint;
 char displayBuffer[HTTP_MAX_LEN + 1] = {'\0'};
 String MobileNumber = "";
 String APIKey = "";
@@ -97,13 +92,13 @@ void setup()
   InitEEPROM();
 
   #ifndef NO_WIFI
-  wifi.begin(ssid, pw);
+  wifi.begin(EEData->router_ssid, EEData->router_password);
   while (wifi.status() != WL_CONNECTED)
   {
     Serial.print("Attempting to connect to open SSID: ");
-    Serial.println(ssid);
+    Serial.println(EEData->router_ssid);
     Serial.print("Password:");
-    Serial.println(pw);
+    Serial.println(EEData->router_password);
     Serial.println(wifi.status());
     SerialInput();
     PauseJetzt(5000);
@@ -120,10 +115,10 @@ void setup()
   ledMatrix.displayClear();   // clear led matrix display
   ledMatrix.displayScroll(displayBuffer, PA_CENTER, PA_SCROLL_LEFT, MATRIX_PACE);
 
-  myHttp = new http(uName, uPw, &EEData);
-
+  myHttp = new http(EEData);
+#ifdef DEBUG
   zeigeDaten();
-
+#endif
   RunLed(true);
   BootLed(false);
   isBooting = false;
@@ -134,20 +129,20 @@ void zeigeDaten()
 {
   Serial.println("ITAO-Daten");
   Serial.print(" - Username    : ");
-  Serial.println(uName);
+  Serial.println(EEData->api_username);
   Serial.print(" - Password    : ");
-  Serial.println(uPw);
+  Serial.println(EEData->api_password);
   Serial.print(" - ssid: ");
-  Serial.println(ssid);
-  Serial.print(" - IPassword: ");
-  Serial.println(pw);
+  Serial.println(EEData->router_ssid);
+  Serial.print(" - Password: ");
+  Serial.println(EEData->router_password);
   Serial.print(" - Endpoint: ");
-  Serial.println(endpointUrl);
+  Serial.println(EEData->api_endpoint);
 }
 
 void InitEEPROM()
 {
-  EEData = MyEEPROM->ReadEEPROM();
+  EEData = MyEEPROM->ReadEEPROM<ITAO_LAUFSCHRIFT_DATEN>();
 }
 
 void loop()
@@ -219,24 +214,24 @@ void updateEEPROM(JSONVar eepromJson) {
     if (validateJson(eepromJson)) {
         ITAO_LAUFSCHRIFT_DATEN newITAOEEPROM;
 
-        strncpy(newITAOEEPROM.EEusername, eepromJson["EEusername"], 30);
-        strncpy(newITAOEEPROM.EEpassword, eepromJson["EEpassword"], 30);
-        strncpy(newITAOEEPROM.EEssid, eepromJson["EEssid"], 70);
-        strncpy(newITAOEEPROM.EEIPassword, eepromJson["EEIPassword"], 50);
-        strncpy(newITAOEEPROM.EEendpoint, eepromJson["EEEndpoint"], 255);
+        strncpy(newITAOEEPROM.api_username, eepromJson["api_username"], 30);
+        strncpy(newITAOEEPROM.api_password, eepromJson["api_password"], 30);
+        strncpy(newITAOEEPROM.router_ssid, eepromJson["router_ssid"], 70);
+        strncpy(newITAOEEPROM.router_password, eepromJson["router_password"], 50);
+        strncpy(newITAOEEPROM.api_endpoint, eepromJson["api_endpoint"], 255);
 
-        if (MyEEPROM->WriteEEPROM(newITAOEEPROM)) {
+        if (MyEEPROM->WriteEEPROM<ITAO_LAUFSCHRIFT_DATEN>(newITAOEEPROM)) {
             ESP.restart();
         }
     }
 }
 
 bool validateJson(JSONVar json) {
-    return json.hasOwnProperty("EEusername") &&
-           json.hasOwnProperty("EEpassword") &&
-           json.hasOwnProperty("EEssid") &&
-           json.hasOwnProperty("EEIPassword") &&
-           json.hasOwnProperty("EEEndpoint");
+    return json.hasOwnProperty("api_username") &&
+           json.hasOwnProperty("api_password") &&
+           json.hasOwnProperty("router_ssid") &&
+           json.hasOwnProperty("router_password") &&
+           json.hasOwnProperty("api_endpoint");
 }
 
 
